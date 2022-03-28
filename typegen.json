@@ -1,9 +1,11 @@
 {
   "outDir": "src/types",
-  "chainVersions": "kusamaVersions.json",
-  "typesBundle": "kusama",
+  "chainVersions": "karuraVersions.json",
+  "typesBundle": "karura",
   "events": [
-    "balances.Transfer"
+    "dex.Swap",
+    "dex.AddLiquidity",
+    "dex.RemoveLiquidity"
   ],
   "calls": []
 }

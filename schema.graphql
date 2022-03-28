@@ -1,13 +1,35 @@
-type Account @entity {
-  "Account address"
+type Swap @entity {
   id: ID!
-  balance: BigInt!
-  historicalBalances: [HistoricalBalance!] @derivedFrom(field: "account")
+  timestamp: BigInt!
+  blockNumber: Int!
+  eventIdx: Int!
+  step: Int!
+  fromCurrency: String!
+  toCurrency: String!
+  fromAmount: BigInt!
+  toAmount: BigInt!
 }
 
-type HistoricalBalance @entity {
+
+type LiquidityChange @entity {
   id: ID!
-  account: Account!
-  balance: BigInt!
-  date: DateTime!
+  timestamp: BigInt!
+  blockNumber: Int!
+  eventIdx: Int!
+  step: Int!
+  reason: LiquidityChangeReason!
+  currencyZero: String!
+  currencyOne: String!
+  amountZero: BigInt!
+  amountOne: BigInt!
+  balanceZero: BigInt!
+  balanceOne: BigInt!
+}
+
+
+enum LiquidityChangeReason {
+  INIT
+  SWAP
+  ADD
+  REMOVE
 }

@@ -22,19 +22,19 @@ codegen:
 	@npx sqd codegen
 
 
-typegen: kusamaVersions.json
+typegen: karuraVersions.json
 	@npx squid-substrate-typegen typegen.json
 
 
-kusamaVersions.json:
+karuraVersions.json:
 	@make explore
 
 
 explore:
 	@npx squid-substrate-metadata-explorer \
-		--chain wss://kusama-rpc.polkadot.io \
-		--archive https://kusama.indexer.gc.subsquid.io/v4/graphql \
-		--out kusamaVersions.json
+		--chain wss://karura-rpc-3.aca-api.network/ws \
+		--archive https://karura.indexer.gc.subsquid.io/v4/graphql \
+		--out karuraVersions.json
 
 
 up:
