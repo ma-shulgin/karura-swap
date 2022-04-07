@@ -1,4 +1,5 @@
 import { IsDateString, Min } from "class-validator";
+import {Swap} from "../../model"
 import {
   Arg,
   Field,
@@ -9,69 +10,12 @@ import {
   Query,
   Resolver,
 } from "type-graphql";
-import { EntityManager } from "typeorm";
+import { EntityManager, Timestamp } from "typeorm";
 import { InjectManager } from "typeorm-typedi-extensions";
-
-@ObjectType()
-export class ExchangeStats {
-  @Field(() => String, { nullable: false })
-  pair!: string;
-
-  @Field(() => String, { nullable: false })
-  period!: string; // ISO string
-
-  @Field(() => Int, { nullable: false })
-  intervalMinutes!: number;
-
-  @Field(() => Float, { nullable: false })
-  minRate!: number;
-
-  @Field(() => Float, { nullable: false })
-  maxRate!: number;
-
-  @Field(() => Float, { nullable: false })
-  avgRate!: number;
-}
-
-@InputType()
-export class ExchangeRatesInput {
-  @Field(() => Int, { nullable: false })
-  @Min(1)
-  intervalMinutes!: number;
-
-  @Field(() => String, { nullable: true })
-  pair?: string;
-
-  @Field(() => String, { nullable: true })
-  @IsDateString()
-  periodFrom?: string;
-
-  @Field(() => String, { nullable: true })
-  @IsDateString()
-  periodTo?: string;
-}
-
-@ObjectType()
-export class LastExchange {
-  @Field(() => String, { nullable: false })
-  pair!: string;
-
-  @Field(() => String, { nullable: false })
-  fromAmount!: string;
-
-  @Field(() => String, { nullable: false })
-  toAmount!: string;
-
-  @Field(() => Float, { nullable: false })
-  rate!: number;
-
-  @Field(() => String, { nullable: false })
-  timestamp!: string;
-}
-
+import {ExchangeRatesInput,LastExchange,ExchangeStats} from "../models"
 @Resolver()
 export class RatesResolver {
-  constructor(@InjectManager() private db: EntityManager) {}
+  constructor(private tx: () => Promise<EntityManager>) {}
 
   @Query(() => [ExchangeStats])
   async ratesHistory(
@@ -104,7 +48,8 @@ export class RatesResolver {
       );
     }
 
-    const rows: any[] = await this.db.query(
+    const manager = await this.tx()
+    const rows: any[] = await manager.getRepository(Swap).query(
       `
             select
                    round(timestamp / $1) * $1 as period,
@@ -139,7 +84,8 @@ export class RatesResolver {
   ) {
     const interval_ms = intervalMinutes * 60 * 1000;
     const now = new Date();
-    const rows: any[] = await this.db.query(
+    const manager = await this.tx()
+    const rows: any[] = await manager.getRepository(Swap).query(
       `
             select concat(to_currency, '/', from_currency) as pair,
                    MIN(from_amount / to_amount) as min_rate,
@@ -166,7 +112,8 @@ export class RatesResolver {
 
   @Query(() => [LastExchange])
   async lastExchanges() {
-    const rows: any[] = await this.db.query(`
+    const manager = await this.tx()
+    const rows: any[] = await manager.getRepository(Swap).query(`
             select
                 distinct on (concat(to_currency, '/', from_currency)) concat(to_currency, '/', from_currency) as pair,
                 from_amount,

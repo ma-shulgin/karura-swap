@@ -1,4 +1,6 @@
 
+
+
 export type Result<T, E> = {
     __kind: 'Ok'
     value: T

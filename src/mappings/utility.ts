@@ -1,10 +1,20 @@
-import {CurrencyId} from "@acala-network/types/interfaces"
-import {Balance, Block} from "@polkadot/types/interfaces"
-import {Store, SubstrateEvent} from "@subsquid/substrate-processor"
-import {SubstrateBlock} from "@subsquid/substrate-processor"
+import {CurrencyId, CurrencyId_Token} from "../types/v2041"
+import * as types from "../types/events"
+import {DexLiquidityPoolStorage} from "../types/storage"
+import {Store, SubstrateEvent, EventHandlerContext, SubstrateBlock} from "@subsquid/substrate-processor"
+import {} from "@subsquid/substrate-processor"
 import assert from "assert"
+import {Block} from "@polkadot/types/interfaces"
 import {LiquidityChange, LiquidityChangeReason} from "../model/generated"
-import {acala} from "./api"
+import * as v1000 from '../types/v1000'
+import * as v1008 from '../types/v1008'
+import * as v1009 from '../types/v1009'
+import * as v1019 from '../types/v1019'
+import * as v2001 from '../types/v2001'
+import * as v2010 from '../types/v2010'
+import * as v2011 from '../types/v2011'
+import * as v2022 from '../types/v2022'
+import * as v2041 from '../types/v2041'
 
 
 export type EntityConstructor<T> = {
@@ -23,36 +33,72 @@ export async function get<T extends { id: string }>(
     return entity;
   }
 
+
+async function getLiquidityPool(ctx : EventHandlerContext, key:[CurrencyId,CurrencyId]): Promise<[bigint, bigint]>{
+    const storage = new DexLiquidityPoolStorage(ctx)
+    if (storage.isV1008) {
+        const balances = storage.getAsV1008(key as [v1008.CurrencyId,v1008.CurrencyId])
+        return balances
+    }
+    if (storage.isV1009) {
+        const balances = storage.getAsV1009(key as [v1009.CurrencyId,v1009.CurrencyId])
+        return balances
+    }
+    if (storage.isV1019) {
+        const balances = storage.getAsV1019(key as [v1019.CurrencyId,v1019.CurrencyId])
+        return balances
+    }
+    if (storage.isV2001) {
+        const balances = storage.getAsV2001(key as [v2001.CurrencyId,v2001.CurrencyId])
+        return balances
+    }
+    if (storage.isV2010) {
+        const balances = storage.getAsV2010(key as [v2001.CurrencyId,v2001.CurrencyId])
+        return balances
+    }
+    if (storage.isV2011) {
+        const balances = storage.getAsV2011(key as [v2011.CurrencyId,v2011.CurrencyId])
+        return balances
+    }
+    if (storage.isV2022) {
+        const balances = storage.getAsV2022(key as [v2022.CurrencyId,v2022.CurrencyId])
+        return balances
+    }
+        const balances = storage.getAsV2041(key as [v2041.CurrencyId,v2041.CurrencyId])
+        return balances
+} 
+
+
+
 export async function addLiquidityChange(
-    store: Store,
-    block: SubstrateBlock,
-    event: SubstrateEvent,
+    ctx : EventHandlerContext,
     reason: LiquidityChangeReason,
-    currency0: CurrencyId,
-    currency1: CurrencyId,
+    currency0: CurrencyId_Token,
+    currency1: CurrencyId_Token,
     amount0: bigint,
     amount1: bigint,
     swapStep?: number
 ): Promise<void> {
-    let pair = currency0.asToken.toString() + '-' + currency1.asToken.toString()
+    const {store, event, block} = ctx
+    let pair = currency0.value.__kind + '-' + currency1.value.__kind
     let initial = await get(store, LiquidityChange, 'initial--' + pair)
     if (initial == null) {
-        let api = await acala()
-        let [b0, b1]: [Balance, Balance] = await api.query.dex.liquidityPool.at(block.parentHash, [currency0, currency1]) as any
-        let parentBlock = await api.rpc.chain.getBlock(block.parentHash)
+
+        let [b0, b1]: [bigint, bigint] = await getLiquidityPool(ctx,[currency0,currency1])
+        //let parentBlock = await (ctx._chain as any).client.call("chain_getBlock",[block.parentHash]) as any
         initial = new LiquidityChange()
         initial.id = 'initial--' + pair
-        initial.timestamp = BigInt(getBlockTimestamp(parentBlock.block))
+        initial.timestamp = BigInt(block.timestamp - 1)
         initial.blockNumber = block.height - 1
         initial.eventIdx = -1
         initial.step = 0
         initial.reason = LiquidityChangeReason.INIT
-        initial.currencyZero = currency0.asToken.toString()
-        initial.currencyOne = currency1.asToken.toString()
+        initial.currencyZero = currency0.value.__kind
+        initial.currencyOne = currency1.value.__kind
         initial.amountZero = 0n
         initial.amountOne = 0n
-        initial.balanceZero = BigInt(b0.toNumber())
-        initial.balanceOne = BigInt(b1.toNumber())
+        initial.balanceZero = b0
+        initial.balanceOne = b1
         await store.save(initial)
     }
     let balance = await getPrevBalance(store, currency0, currency1)
@@ -63,8 +109,8 @@ export async function addLiquidityChange(
     change.eventIdx = event.indexInBlock
     change.step = swapStep || 0
     change.reason = reason
-    change.currencyZero = currency0.asToken.toString()
-    change.currencyOne = currency1.asToken.toString()
+    change.currencyZero = currency0.value.__kind
+    change.currencyOne = currency1.value.__kind
     change.amountZero = amount0
     change.amountOne = amount1
     change.balanceZero = balance[0] + amount0
@@ -73,12 +119,12 @@ export async function addLiquidityChange(
 }
 
 
-async function getPrevBalance(store: Store, currency0: CurrencyId, currency1: CurrencyId): Promise<[bigint, bigint]> {
+async function getPrevBalance(store: Store, currency0: CurrencyId_Token, currency1: CurrencyId_Token): Promise<[bigint, bigint]> {
     let rows = await store.find(LiquidityChange, {
         select: ['balanceZero', 'balanceOne'],
         where: {
-            currencyZero: currency0.asToken.toString(),
-            currencyOne: currency1.asToken.toString()
+            currencyZero: currency0.value.__kind,
+            currencyOne: currency1.value.__kind
         },
         order: {
             blockNumber: 'DESC',
@@ -92,7 +138,9 @@ async function getPrevBalance(store: Store, currency0: CurrencyId, currency1: Cu
 }
 
 
-function getBlockTimestamp(block: Block): number {
-    let ex = block.extrinsics.find(({method: {method, section}}) => section === 'timestamp' && method === 'set')
-    return ex ? (ex.args[0].toJSON() as number) : 0
-}
+// function getBlockTimestamp(block: Block): number {
+//     // let ex = block.extrinsics.find(({method: {method, section}}) => section === 'timestamp' && method === 'set')
+//     // return ex ? (ex.args[0].toJSON() as number) : 0
+//     // @ts-ignore
+//     return block.timestamp ? block.timestamp : 0
+// }
